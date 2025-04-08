@@ -54,10 +54,10 @@ class TemplateData(BaseModel):
     locate_narrative: str
     work_prints: str
     project_gid: uuid.UUID
-    toggles: dict
+    toggles: dict 
 
 # Save template
-@app.post("/save_template")
+@app.post("/saveTemplate")
 async def save_template(data: TemplateData):
     try:
         t = data.toggles
