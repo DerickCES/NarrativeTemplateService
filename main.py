@@ -2,7 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import asyncpg
 from pydantic import BaseModel
-import uuid
+from uuid import UUID
+from typing import Optional
 
 app = FastAPI()
 
@@ -53,15 +54,19 @@ class TemplateData(BaseModel):
     type: str
     locate_narrative: str
     work_prints: str
-    project_gid: uuid.UUID
-    toggles: dict 
+    project_gid: UUID
 
+    note_distance_from_start_intersection: Optional[bool] = False
+    note_distance_from_end_intersection: Optional[bool] = False
+    note_address_at_start: Optional[bool] = False
+    note_address_at_end: Optional[bool] = False
+    include_gps_at_start: Optional[bool] = False
+    include_gps_at_end: Optional[bool] = False
+    include_gps_at_bearing: Optional[bool] = False
 # Save template
 @app.post("/saveTemplate")
-async def save_template(data: TemplateData):
+async def saveTemplate(data: TemplateData):
     try:
-        t = data.toggles
-
         async with pool.acquire() as conn:
             query = """
                 INSERT INTO archive.line_locates (
@@ -73,36 +78,34 @@ async def save_template(data: TemplateData):
                     include_gps_at_start,
                     include_gps_at_end,
                     include_gps_at_bearing
-                ) VALUES (
-                    $1, $2, $3, $4, $5,
-                    $6, $7, $8, $9, $10, $11, $12
-                ) RETURNING pk;
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                RETURNING pk
             """
-
             result = await conn.fetchrow(
                 query,
                 data.name,
                 data.type,
                 data.locate_narrative,
                 data.work_prints,
-                data.project_gid,
-                t.get("note_distance_from_start_intersection", False),
-                t.get("note_distance_from_end_intersection", False),
-                t.get("note_address_at_start", False),
-                t.get("note_address_at_end", False),
-                t.get("include_gps_at_start", False),
-                t.get("include_gps_at_end", False),
-                t.get("include_gps_at_bearing", False)
+                str(data.project_gid),
+                data.note_distance_from_start_intersection,
+                data.note_distance_from_end_intersection,
+                data.note_address_at_start,
+                data.note_address_at_end,
+                data.include_gps_at_start,
+                data.include_gps_at_end,
+                data.include_gps_at_bearing,
             )
-
-            return {"message": "Template saved successfully", "pk": result["pk"]}
-
+            if result:
+                return {"message": "Template saved successfully", "pk": result["pk"]}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to save template")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 # Get all templates
-@app.get("/get_templates")
-async def get_templates():
+@app.get("/getTemplates")
+async def getTemplates():
     try:
         async with pool.acquire() as conn:
             query = """
