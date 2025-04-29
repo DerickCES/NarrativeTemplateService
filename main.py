@@ -5,6 +5,11 @@ from pydantic import BaseModel
 from uuid import UUID
 from typing import Optional
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
 app = FastAPI()
 
 # CORS Setup
@@ -16,12 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# DB Config
-DB_HOST = "dpg-cu88cibv2p9s73c8pj1g-a.ohio-postgres.render.com"
-DB_NAME = "prod_narrative"
-DB_USER = "ces_admin_narrative"
-DB_PASSWORD = "Do9oO6I9NlAiPXRlGHRdD9XhG9yz1LQQ"
-DB_PORT = 5432
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PORT = os.getenv("DB_PORT")
 
 pool = None
 
@@ -118,5 +122,6 @@ async def getTemplates():
             """
             rows = await conn.fetch(query)
             return [dict(row) for row in rows]
+        print("Connecting to DB:", DB_HOST, DB_NAME)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
