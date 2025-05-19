@@ -1,14 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-import asyncpg
 from pydantic import BaseModel
 from uuid import UUID
-from typing import Optional
+from typing import Optional, Union
 
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
+# ...
 
 app = FastAPI()
 
@@ -21,45 +17,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_PORT = os.getenv("DB_PORT")
-
-pool = None
-
-# Database pool
-async def create_db_pool():
-    global pool
-    pool = await asyncpg.create_pool(
-        host=DB_HOST,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        port=DB_PORT,
-        ssl="require"
-    )
-
-async def close_db_pool():
-    await pool.close()
-
-@app.on_event("startup")
-async def startup():
-    await create_db_pool()
-
-@app.on_event("shutdown")
-async def shutdown():
-    await close_db_pool()
-
-# Request model
-class TemplateData(BaseModel):
+# Incoming payload structure
+class SubmitTemplatePayload(BaseModel):
     name: str
     type: str
     locate_narrative: str
     work_prints: str
     project_gid: UUID
-
     note_distance_from_start_intersection: Optional[bool] = False
     note_distance_from_end_intersection: Optional[bool] = False
     note_address_at_start: Optional[bool] = False
@@ -67,9 +31,24 @@ class TemplateData(BaseModel):
     include_gps_at_start: Optional[bool] = False
     include_gps_at_end: Optional[bool] = False
     include_gps_at_bearing: Optional[bool] = False
+
+class IncomingRequest(BaseModel):
+    function: str
+    payload: Union[dict, None]
+
+# Unified API
+@app.post("/api")
+async def unified_handler(request: IncomingRequest):
+    if request.function == "submit_template":
+        return await handle_submit_template(SubmitTemplatePayload(**request.payload))
+    elif request.function == "get_templates":
+        return await handle_get_templates()
+    else:
+        raise HTTPException(status_code=400, detail="Unknown function name")
+
+
 # Save template
-@app.post("/saveTemplate")
-async def saveTemplate(data: TemplateData):
+async def handle_submit_template(data: SubmitTemplatePayload):
     try:
         async with pool.acquire() as conn:
             query = """
@@ -100,16 +79,13 @@ async def saveTemplate(data: TemplateData):
                 data.include_gps_at_end,
                 data.include_gps_at_bearing,
             )
-            if result:
-                return {"message": "Template saved successfully", "pk": result["pk"]}
-            else:
-                raise HTTPException(status_code=500, detail="Failed to save template")
+            return {"message": "Template saved successfully", "pk": result["pk"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-# Get all templates
-@app.get("/getTemplates")
-async def getTemplates():
+
+# Get templates
+async def handle_get_templates():
     try:
         async with pool.acquire() as conn:
             query = """
@@ -122,6 +98,5 @@ async def getTemplates():
             """
             rows = await conn.fetch(query)
             return [dict(row) for row in rows]
-        print("Connecting to DB:", DB_HOST, DB_NAME)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
