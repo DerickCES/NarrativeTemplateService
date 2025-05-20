@@ -5,6 +5,8 @@ from uuid import UUID
 from typing import Optional, Union
 import os
 import uvicorn
+import asyncpg
+
 
 # ...
 
@@ -19,11 +21,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_PORT = os.getenv("DB_PORT")
+pool = None
+
+@app.on_event("startup")
+async def startup():
+    global pool
+    pool = await asyncpg.create_pool(
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        database=os.environ["DB_NAME"],
+        host=os.environ["DB_HOST"],
+        port=int(os.environ.get("DB_PORT", 5432)),
+        min_size=1,
+        max_size=5
+    )
+
 
 # Incoming payload structure
 class SubmitTemplatePayload(BaseModel):
@@ -55,35 +67,8 @@ async def unified_handler(request: IncomingRequest):
         raise HTTPException(status_code=400, detail="Unknown function name")
 
 
-# Function to create a database connection pool
-async def create_db_pool():
-    global pool
-    pool = await asyncpg.create_pool(
-        host=DB_HOST,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        port=DB_PORT,
-        ssl="require"  # Required for Render-hosted databases
-    )
-
-# Close the connection pool on shutdown
-async def close_db_pool():
-    await pool.close()
-
-# Initialize the database connection pool when the app starts
-@app.on_event("startup")
-async def startup():
-    await create_db_pool()
-
-# Close the database pool when the app shuts down
-@app.on_event("shutdown")
-async def shutdown():
-    await close_db_pool()
-
 # Save template
 async def handle_submit_template(data: SubmitTemplatePayload):
-    
     try:
         async with pool.acquire() as conn:
             query = """
@@ -137,5 +122,5 @@ async def handle_get_templates():
         raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
     
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 3000))
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
