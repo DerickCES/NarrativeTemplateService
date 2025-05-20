@@ -19,6 +19,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PORT = os.getenv("DB_PORT")
+
 # Incoming payload structure
 class SubmitTemplatePayload(BaseModel):
     name: str
@@ -49,8 +55,35 @@ async def unified_handler(request: IncomingRequest):
         raise HTTPException(status_code=400, detail="Unknown function name")
 
 
+# Function to create a database connection pool
+async def create_db_pool():
+    global pool
+    pool = await asyncpg.create_pool(
+        host=DB_HOST,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        port=DB_PORT,
+        ssl="require"  # Required for Render-hosted databases
+    )
+
+# Close the connection pool on shutdown
+async def close_db_pool():
+    await pool.close()
+
+# Initialize the database connection pool when the app starts
+@app.on_event("startup")
+async def startup():
+    await create_db_pool()
+
+# Close the database pool when the app shuts down
+@app.on_event("shutdown")
+async def shutdown():
+    await close_db_pool()
+
 # Save template
 async def handle_submit_template(data: SubmitTemplatePayload):
+    
     try:
         async with pool.acquire() as conn:
             query = """
