@@ -43,6 +43,7 @@ class SubmitTemplatePayload(BaseModel):
     type: str
     locate_narrative: str
     work_prints: str
+    max_length : int
     project_gid: UUID
     note_distance_from_start_intersection: Optional[bool] = False
     note_distance_from_end_intersection: Optional[bool] = False
@@ -73,7 +74,7 @@ async def handle_submit_template(data: SubmitTemplatePayload):
         async with pool.acquire() as conn:
             query = """
                 INSERT INTO archive.line_locates (
-                    name, type, locate_narrative, work_prints, project_gid,
+                    name, type, locate_narrative, work_prints,max_length ,project_gid,
                     note_distance_from_start_intersection,
                     note_distance_from_end_intersection,
                     note_address_at_start,
@@ -89,6 +90,7 @@ async def handle_submit_template(data: SubmitTemplatePayload):
                 data.name,
                 data.type,
                 data.locate_narrative,
+                data.max_length,
                 data.work_prints,
                 str(data.project_gid),
                 data.note_distance_from_start_intersection,
@@ -109,7 +111,7 @@ async def handle_get_templates():
     try:
         async with pool.acquire() as conn:
             query = """
-                SELECT pk, name, type, locate_narrative, work_prints, project_gid,
+                SELECT pk, name, type, locate_narrative, work_prints,max_length ,project_gid,
                        note_distance_from_start_intersection,
                        note_distance_from_end_intersection,
                        note_address_at_start, note_address_at_end,
