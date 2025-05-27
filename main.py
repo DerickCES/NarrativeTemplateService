@@ -68,13 +68,12 @@ async def unified_handler(request: IncomingRequest):
         raise HTTPException(status_code=400, detail="Unknown function name")
 
 
-# Save template
 async def handle_submit_template(data: SubmitTemplatePayload):
     try:
         async with pool.acquire() as conn:
             query = """
                 INSERT INTO archive.line_locates (
-                    name, type, locate_narrative, work_prints,max_length ,project_gid,
+                    name, type, locate_narrative, work_prints, max_narrative_length, project_gid,
                     note_distance_from_start_intersection,
                     note_distance_from_end_intersection,
                     note_address_at_start,
@@ -82,7 +81,7 @@ async def handle_submit_template(data: SubmitTemplatePayload):
                     include_gps_at_start,
                     include_gps_at_end,
                     include_gps_at_bearing
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING pk
             """
             result = await conn.fetchrow(
@@ -90,8 +89,8 @@ async def handle_submit_template(data: SubmitTemplatePayload):
                 data.name,
                 data.type,
                 data.locate_narrative,
-                data.max_length,
                 data.work_prints,
+                data.max_length,  # mapped to max_narrative_length in DB
                 str(data.project_gid),
                 data.note_distance_from_start_intersection,
                 data.note_distance_from_end_intersection,
@@ -104,20 +103,19 @@ async def handle_submit_template(data: SubmitTemplatePayload):
             return {"message": "Template saved successfully", "pk": result["pk"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
 # Get templates
 async def handle_get_templates():
     try:
         async with pool.acquire() as conn:
             query = """
-                SELECT pk, name, type, locate_narrative, work_prints,max_length ,project_gid,
-                       note_distance_from_start_intersection,
-                       note_distance_from_end_intersection,
-                       note_address_at_start, note_address_at_end,
-                       include_gps_at_start, include_gps_at_end, include_gps_at_bearing
-                FROM archive.line_locates
-            """
+                        SELECT pk, name, type, locate_narrative, work_prints, max_narrative_length AS max_length, project_gid,
+                            note_distance_from_start_intersection,
+                            note_distance_from_end_intersection,
+                            note_address_at_start, note_address_at_end,
+                            include_gps_at_start, include_gps_at_end, include_gps_at_bearing
+                        FROM archive.line_locates
+                    """
+
             rows = await conn.fetch(query)
             return [dict(row) for row in rows]
     except Exception as e:
