@@ -57,17 +57,63 @@ class IncomingRequest(BaseModel):
     function: str
     payload: Union[dict, None]
 
-# Unified API
+# --- Point Template Payload ---
+class SubmitPointTemplatePayload(BaseModel):
+    template_name: str
+    point_name: str
+    point_type: str
+    work_print: str
+    radius: Optional[int]
+    location_direction: Optional[str]
+    point_note: Optional[str]
+    project_gid: UUID
+
+
+# --- Unified API Handler Update ---
 @app.post("/api")
 async def unified_handler(request: IncomingRequest):
     if request.function == "submit_template":
         return await handle_submit_template(SubmitTemplatePayload(**request.payload))
+    elif request.function == "submit_point_templates":
+        return await handle_submit_point_template(SubmitPointTemplatePayload(**request.payload))
     elif request.function == "get_templates":
         return await handle_get_templates()
+    elif request.function == "get_point_templates":
+        return await handle_get_point_templates()
     else:
-        raise HTTPException(status_code=400, detail="Unknown function name")
-
-
+        raise HTTPException(status_code=400, detail="Unknown function name") 
+    
+async def handle_submit_point_template(data: SubmitPointTemplatePayload):
+    try:
+        async with pool.acquire() as conn:
+            query = """
+                INSERT INTO archive.archive_point_locates (
+                    template_name,
+                    point_name,
+                    point_type,
+                    work_print,
+                    radius,
+                    location_direction,
+                    point_note,
+                    project_gid
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING pk
+            """
+            result = await conn.fetchrow(
+                query,
+                data.template_name,
+                data.point_name,
+                data.point_type,
+                data.work_print,
+                data.radius,
+                data.location_direction,
+                data.point_note,
+                str(data.project_gid),
+            )
+            return {"message": "Point template saved successfully", "pk": result["pk"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
 async def handle_submit_template(data: SubmitTemplatePayload):
     try:
         async with pool.acquire() as conn:
@@ -120,6 +166,28 @@ async def handle_get_templates():
             return [dict(row) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
+
+async def handle_get_point_templates():
+    try:
+        async with pool.acquire() as conn:
+            query = """
+                SELECT 
+                    pk,
+                    template_name,
+                    point_name,
+                    point_type,
+                    work_print,
+                    radius,
+                    location_direction,
+                    point_note,
+                    project_gid
+                FROM archive.archive_point_locates
+            """
+            rows = await conn.fetch(query)
+            return [dict(row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching point templates: {str(e)}")   
+    
     
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
