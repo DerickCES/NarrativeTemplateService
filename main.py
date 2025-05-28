@@ -87,7 +87,7 @@ async def handle_submit_point_template(data: SubmitPointTemplatePayload):
     try:
         async with pool.acquire() as conn:
             query = """
-                INSERT INTO archive.archive_point_locates (
+                INSERT INTO archive.point_locates (
                     template_name,
                     point_name,
                     point_type,
@@ -181,7 +181,7 @@ async def handle_get_point_templates():
                     location_direction,
                     point_note,
                     project_gid
-                FROM archive.archive_point_locates
+                FROM archive.point_locates
             """
             rows = await conn.fetch(query)
             return [dict(row) for row in rows]
