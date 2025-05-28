@@ -59,13 +59,12 @@ class IncomingRequest(BaseModel):
 
 # --- Point Template Payload ---
 class SubmitPointTemplatePayload(BaseModel):
-    template_name: str
-    point_name: str
-    point_type: str
-    work_print: str
-    radius: Optional[int]
-    location_direction: Optional[str]
-    point_note: Optional[str]
+    name: str                      # was point_name
+    type: str                      # was point_type
+    work_prints: str              # was work_print
+    narrative_radius: Optional[int] = None  # was radius
+    property_bearing: Optional[str] = None  # was location_direction
+    narrative_suffix: Optional[str] = None  # was point_note
     project_gid: UUID
 
 
@@ -87,29 +86,28 @@ async def handle_submit_point_template(data: SubmitPointTemplatePayload):
     try:
         async with pool.acquire() as conn:
             query = """
-                INSERT INTO archive.point_locates (
-                    template_name,
-                    point_name,
-                    point_type,
-                    work_print,
-                    radius,
-                    location_direction,
-                    point_note,
-                    project_gid
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING pk
-            """
+                    INSERT INTO archive.point_locates (
+                        name,
+                        type,
+                        work_prints,
+                        narrative_radius,
+                        property_bearing,
+                        narrative_suffix,
+                        project_gid
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    RETURNING pk
+             """
             result = await conn.fetchrow(
                 query,
-                data.template_name,
-                data.point_name,
-                data.point_type,
-                data.work_print,
-                data.radius,
-                data.location_direction,
-                data.point_note,
+                data.name,
+                data.type,
+                data.work_prints,
+                data.narrative_radius,
+                data.property_bearing,
+                data.narrative_suffix,
                 str(data.project_gid),
             )
+
             return {"message": "Point template saved successfully", "pk": result["pk"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -173,15 +171,15 @@ async def handle_get_point_templates():
             query = """
                 SELECT 
                     pk,
-                    template_name,
-                    point_name,
-                    point_type,
-                    work_print,
-                    radius,
-                    location_direction,
-                    point_note,
+                    name,
+                    type,
+                    work_prints,
+                    narrative_radius,
+                    property_bearing,
+                    narrative_suffix,
                     project_gid
                 FROM archive.point_locates
+
             """
             rows = await conn.fetch(query)
             return [dict(row) for row in rows]
